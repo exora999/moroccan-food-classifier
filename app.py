@@ -1,22 +1,20 @@
 """Moroccan Food Classifier - Gradio demo.
 
-Run locally:  python app.py
-Needs food_model_v1.keras and food_classes.json in the same folder.
-Author: Hamza Oulbayyad
-"""
 import json
-import os
-
 import gradio as gr
 import numpy as np
+from PIL import Image
 from tensorflow import keras
+from google.colab import drive
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-model = keras.models.load_model(os.path.join(HERE, "food_model_v1.keras"))
-with open(os.path.join(HERE, "food_classes.json"), encoding="utf-8") as f:
+drive.mount('/content/drive')
+P = '/content/drive/MyDrive/food_project'
+
+model = keras.models.load_model(f'{P}/food_model_v1.keras')
+with open(f'{P}/food_classes.json') as f:
     class_names = json.load(f)
+print("تم تحميل النموذج:", len(class_names), "فئة")
 
-# Arabic display names (some are best guesses and should be reviewed)
 AR = {
     "traditional macaroon": "ماكرون تقليدي",
     "tomatoes and onion salad": "سلطة الطماطم والبصل",
@@ -90,17 +88,18 @@ AR = {
     "kaak": "كعك",
     "liver with sauce": "كبدة بالصلصة",
 }
-names_ar = [AR.get(c, c) for c in class_names]
 
+names_ar = [AR.get(c, c) for c in class_names]
+missing = [c for c in class_names if c not in AR]
+print("Categories without translation (will appear under their original name):", missing)
 
 def predict(img):
     if img is None:
         return None
-    img = img.convert("RGB").resize((224, 224))
-    x = np.expand_dims(np.array(img, dtype="float32"), axis=0)
+    img = img.convert('RGB').resize((224, 224))
+    x = np.expand_dims(np.array(img, dtype='float32'), axis=0)
     probs = model.predict(x, verbose=0)[0]
     return {names_ar[i]: float(probs[i]) for i in range(len(names_ar))}
-
 
 HERO = """
 <div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
@@ -108,21 +107,21 @@ HERO = """
             margin-bottom:14px;direction:rtl;">
   <h1 style="margin:0 0 6px 0;font-size:1.9rem;color:white;">🍽️ ما هذا الطبق؟</h1>
   <p style="margin:0 0 14px 0;font-size:1.05rem;color:white;opacity:.95;">
-     صوّر طبقاً بالهاتف أو ارفع صورته، وسأخمّن اسمه</p>
+    📸 Upload or take a photo of a Moroccan dish — أرفع صورة أو التقطها</p>
   <span style="display:inline-block;background:rgba(255,255,255,.22);
                border:1px solid rgba(255,255,255,.55);border-radius:999px;
                padding:6px 18px;font-size:1rem;color:white;">
-     ✨ من إنجاز: <b>حمزة اولبياض</b></span>
+     ✨ Created by: <b>Hamza Oulbayyad</b></span>
 </div>
 """
 
 FOOT = """
-<div style="text-align:center;font-size:.9rem;opacity:.9;margin-top:12px;direction:rtl;">
-  <div>⚠️ مشروع تعليمي: النموذج يعرف 70 طبقاً فقط، فإن أريته شيئاً آخر
-  (أو شيئاً ليس طعاماً) فسيختار أقرب طبق من الـ 70، وقد يخطئ.
-  أفضل النتائج مع صورة واضحة لطبق واحد من الأعلى.</div>
-  <div style="margin-top:8px;">تصميم وتدريب النموذج: <b>حمزة اولبياض</b>
-  — قاعدة البيانات: MFOOD_70 (رخصة CC BY-SA 4.0)</div>
+<div style="text-align:center;font-size:.9rem;opacity:.9;margin-top:12px;direction:ltr;">
+<div>⚠️ Educational project: The model only recognizes 70 specific dishes. If you show it something else
+(or something that is not food), it will select the closest match from those 70, which may result in an error. 
+For best results, use a clear, top-down photo of a single dish.</div>
+<div style="margin-top:8px;">Model design and training: <b>Hamza Oulbayyad</b>
+— Dataset: MFOOD_70 (licensed under CC BY-SA 4.0)</div>
 </div>
 """
 
@@ -131,9 +130,8 @@ with gr.Blocks(title="ما هذا الطبق؟ — حمزة اولبياض") as 
     inp = gr.Image(type="pil", sources=["upload", "webcam"],
                    label="صورة الطبق (ارفع صورة أو التقطها)", height=360)
     btn = gr.Button("🔍 ما اسم هذا الطبق؟", variant="primary")
-    out = gr.Label(num_top_classes=3, label="أعلى 3 توقعات")
+    out = gr.Label(num_top_classes=3, label="Top 3 predictions")
     gr.HTML(FOOT)
     btn.click(predict, inputs=inp, outputs=out)
 
-if __name__ == "__main__":
-    demo.launch()
+demo.launch(share=True)
