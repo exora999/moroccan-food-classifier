@@ -14,14 +14,34 @@ import streamlit as st
 from PIL import Image
 from tensorflow import keras
 
-# ── Page config ──────────────────────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ما هذا الطبق؟ — Hamza Oulbayyad",
     page_icon="🍽️",
     layout="centered",
 )
 
-# ── Load model (cached so it loads only once) ─────────────────────────────────
+st.markdown("""
+<style>
+  .bar-wrap { margin: 6px 0 14px 0; direction: rtl; }
+  .bar-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; color: #1a1a1a; }
+  .bar-track { background: #f0f0f0; border-radius: 999px; height: 22px; width: 100%;
+               overflow: hidden; }
+  .bar-fill  { height: 22px; border-radius: 999px;
+               background: linear-gradient(90deg, #9a3412, #ea580c, #fdba74);
+               display: flex; align-items: center; padding-right: 10px;
+               justify-content: flex-end; color: white; font-size: .85rem;
+               font-weight: 700; min-width: 44px; transition: width .4s ease; }
+  .rank-1 .bar-fill { background: linear-gradient(90deg,#9a3412,#ea580c,#fdba74); }
+  .rank-2 .bar-fill { background: linear-gradient(90deg,#78350f,#b45309,#fcd34d); opacity:.85; }
+  .rank-3 .bar-fill { background: linear-gradient(90deg,#57534e,#78716c,#d6d3d1); opacity:.75; }
+  .stButton > button { border-radius: 14px !important; }
+  .feedback-box { background:#fafafa; border:1px solid #e5e7eb;
+                  border-radius:14px; padding:18px 16px; margin-top:14px; direction:rtl; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Load model ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_assets():
     model = keras.models.load_model("food_model_v1.keras")
@@ -31,8 +51,7 @@ def load_assets():
 
 model, class_names = load_assets()
 
-# ── Arabic display names ──────────────────────────────────────────────────────
-# Note: some names are best guesses — please review before publishing
+# ── Arabic names ──────────────────────────────────────────────────────────────
 AR = {
     "traditional macaroon": "ماكرون تقليدي",
     "tomatoes and onion salad": "سلطة الطماطم والبصل",
@@ -43,7 +62,7 @@ AR = {
     "sellou": "سلّو",
     "amlou": "أملو",
     "sfenje": "سفنج",
-    "snowballs": "كرات الثلج (حلوى جوز الهند)",
+    "snowballs": "كرات الثلج",
     "traditional bread": "خبز تقليدي",
     "white beans with tomatoes": "لوبيا بيضاء بالطماطم",
     "tagine with quince": "طاجين بالسفرجل",
@@ -90,7 +109,7 @@ AR = {
     "lasagne": "لازانيا",
     "meat brochettes": "أسياخ لحم مشوي",
     "msamen": "مسمن",
-    "omelette": "عجّة بالبيض (أومليت)",
+    "omelette": "عجّة (أومليت)",
     "orange": "برتقال",
     "paella": "باييا",
     "pear": "إجاص",
@@ -108,7 +127,12 @@ AR = {
 }
 names_ar = [AR.get(c, c) for c in class_names]
 
-# ── Hero banner ───────────────────────────────────────────────────────────────
+# ── Session state ─────────────────────────────────────────────────────────────
+for key in ("top_indices", "probs", "feedback_sent"):
+    if key not in st.session_state:
+        st.session_state[key] = None
+
+# ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
             border-radius:20px;padding:30px 20px;text-align:center;color:white;
@@ -123,87 +147,100 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Image input: upload OR camera ─────────────────────────────────────────────
+# ── Image input ───────────────────────────────────────────────────────────────
 tab_upload, tab_camera = st.tabs(["📁 رفع صورة", "📷 تصوير مباشر"])
-
 with tab_upload:
     uploaded_file = st.file_uploader(
-        "اختر صورة من جهازك",
-        type=["jpg", "jpeg", "png", "webp"],
-        label_visibility="collapsed",
-    )
-
+        "اختر صورة", type=["jpg","jpeg","png","webp"],
+        label_visibility="collapsed")
 with tab_camera:
     camera_photo = st.camera_input("التقط صورة بالكاميرا")
 
 img_source = uploaded_file or camera_photo
 
-# ── Prediction ────────────────────────────────────────────────────────────────
+# ── Predict button ────────────────────────────────────────────────────────────
 if img_source is not None:
     image = Image.open(img_source)
     st.image(image, caption="الصورة المرفوعة", use_container_width=True)
 
     if st.button("🔍 ما اسم هذا الطبق؟", type="primary", use_container_width=True):
         with st.spinner("جاري تحليل الطبق..."):
-            img_resized = image.convert("RGB").resize((224, 224))
-            x = np.expand_dims(np.array(img_resized, dtype="float32"), axis=0)
+            img_r = image.convert("RGB").resize((224, 224))
+            x = np.expand_dims(np.array(img_r, dtype="float32"), axis=0)
             probs = model.predict(x, verbose=0)[0]
+        st.session_state.probs = probs
+        st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
+        st.session_state.feedback_sent = False
 
-        top_indices = np.argsort(probs)[::-1][:3]
-        top_name = names_ar[top_indices[0]]
+# ── Results ───────────────────────────────────────────────────────────────────
+if st.session_state.top_indices is not None:
+    medals = ["🥇", "🥈", "🥉"]
+    ranks  = ["rank-1", "rank-2", "rank-3"]
+    st.markdown("### أقرب 3 توقعات (Top 3 Predictions)")
 
-        st.subheader("أقرب 3 توقعات (Top 3 Predictions):")
-        for rank, idx in enumerate(top_indices):
-            confidence = float(probs[idx])
-            emoji = "🥇" if rank == 0 else ("🥈" if rank == 1 else "🥉")
-            st.write(f"{emoji} **{names_ar[idx]}** — `{confidence * 100:.1f}%`")
-            st.progress(confidence)
+    for i, idx in enumerate(st.session_state.top_indices):
+        pct = st.session_state.probs[idx] * 100
+        st.markdown(f"""
+        <div class="bar-wrap {ranks[i]}">
+          <div class="bar-label">{medals[i]} {names_ar[idx]}</div>
+          <div class="bar-track">
+            <div class="bar-fill" style="width:{pct:.1f}%">{pct:.1f}%</div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # ── Feedback section ──────────────────────────────────────────────────
-        st.divider()
-        st.markdown("**هل التوقع صحيح؟**")
-        correct = st.radio(
-            "feedback",
-            ["✅ نعم، صحيح", "❌ لا، خطأ"],
-            horizontal=True,
-            index=None,
+    if not st.session_state.feedback_sent:
+        st.markdown('<div class="feedback-box">', unsafe_allow_html=True)
+        st.markdown("**هل التوقع الأول صحيح؟**")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ نعم، صحيح", use_container_width=True):
+                st.session_state.feedback_sent = "correct"
+                st.rerun()
+        with col2:
+            if st.button("❌ لا، خطأ", use_container_width=True):
+                st.session_state.feedback_sent = "wrong"
+                st.rerun()
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    elif st.session_state.feedback_sent == "correct":
+        st.success("ممتاز! شكراً على تأكيدك 🎉")
+
+    elif st.session_state.feedback_sent == "wrong":
+        st.markdown('<div class="feedback-box">', unsafe_allow_html=True)
+        st.markdown("**ما اسم الطبق الصحيح؟**")
+        fix = st.selectbox(
+            "اختر من القائمة",
+            options=[""] + names_ar,
+            index=0,
             label_visibility="collapsed",
         )
+        if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
+            top_name = names_ar[st.session_state.top_indices[0]]
+            log_file = "corrections.csv"
+            write_header = not os.path.exists(log_file)
+            with open(log_file, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                if write_header:
+                    writer.writerow(["التاريخ", "توقع النموذج", "الصحيح"])
+                writer.writerow([
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    top_name, fix,
+                ])
+            st.session_state.feedback_sent = "done"
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        if correct == "✅ نعم، صحيح":
-            st.success("ممتاز! شكراً على تأكيدك 🎉")
-
-        elif correct == "❌ لا، خطأ":
-            fix = st.selectbox(
-                "ما اسم الطبق الصحيح؟",
-                options=names_ar,
-                index=None,
-                placeholder="اختر من القائمة...",
-            )
-            if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
-                log_file = "corrections.csv"
-                write_header = not os.path.exists(log_file)
-                with open(log_file, "a", newline="", encoding="utf-8") as f:
-                    writer = csv.writer(f)
-                    if write_header:
-                        writer.writerow(["التاريخ", "توقع النموذج", "الصحيح"])
-                    writer.writerow([
-                        datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        top_name,
-                        fix,
-                    ])
-                st.success(f"شكراً! تعلّمتُ أن الطبق هو **{fix}** 🎉")
-                st.info("سيتم مراجعة هذا التصحيح لاحقاً لتحسين النموذج.")
+    elif st.session_state.feedback_sent == "done":
+        fix_name = ""
+        st.success(f"شكراً! تعلّمتُ منك 🎉 — سيتم مراجعة هذا التصحيح لاحقاً.")
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style="text-align:center;font-size:.85rem;opacity:.85;margin-top:25px;direction:ltr;">
-  <div>⚠️ Educational project: The model only recognizes 70 specific dishes.
-  If you show it something else it will pick the closest match, which may be wrong.
-  For best results, use a clear top-down photo of a single dish.</div>
-  <div style="margin-top:8px;">
-    Model design and training: <b>Hamza Oulbayyad</b> —
-    Dataset: MFOOD_70 (CC BY-SA 4.0)
-  </div>
+<div style="text-align:center;font-size:.85rem;opacity:.8;margin-top:30px;direction:ltr;">
+  ⚠️ Educational project: 70 dishes only — results may be wrong outside this list.<br>
+  <b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0)
 </div>
 """, unsafe_allow_html=True)
