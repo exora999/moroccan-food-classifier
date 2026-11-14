@@ -34,7 +34,7 @@ st.markdown("""
 
 # ── GitHub Integration (Issue + Image Upload) ─────────────────────────────────
 def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str):
-    """يرفع الصورة مباشرة إلى مستودع GitHub"""
+    """يرفع الصورة مباشرة إلى مستودع GitHub بشكل آمن"""
     token = st.secrets["GITHUB_TOKEN"]
     repo  = st.secrets["GITHUB_REPO"]
     url   = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -47,8 +47,7 @@ def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str
 
     data = json.dumps({
         "message": commit_message,
-        "content": b64_content,
-        "branch": "main"  # أو "master" حسب الفرع الأساسي عندك
+        "content": b64_content
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -62,7 +61,8 @@ def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str
         with urllib.request.urlopen(req) as res:
             res_data = json.loads(res.read())
             return res_data["content"]["html_url"]
-    except Exception:
+    except Exception as e:
+        print(f"Error uploading image: {e}")
         return None
 
 def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
@@ -71,15 +71,15 @@ def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
     repo  = st.secrets["GITHUB_REPO"]
     issues_url = f"https://api.github.com/repos/{repo}/issues"
 
-    # 1. حفظ الصورة في مجلد training_corrections داخل المستودع
+    # 1. حفظ الصورة في مسار آمن داخل مجلد training_corrections بدون حروف عربية في المسار
     import time
-    file_name = f"correction_{int(time.time())}_{correct}.jpg"
-    file_path = f"training_corrections/{correct}/{file_name}"
+    file_name = f"correction_{int(time.time())}.jpg"
+    file_path = f"training_corrections/{file_name}"
     
     img_url = upload_image_to_github(
         img_bytes, 
         file_path, 
-        commit_message=f"Add correction image for {correct} (Predicted was {wrong})"
+        commit_message=f"Add training image for correct dish: {correct} (Predicted: {wrong})"
     )
 
     image_md = f"[🔗 عرض وتنزيل صورة التدريب]({img_url})" if img_url else "*تعذر رفع الصورة للمستودع*"
