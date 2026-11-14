@@ -190,9 +190,8 @@ if st.session_state.top_indices is not None:
         """, unsafe_allow_html=True)
 
     if not st.session_state.feedback_sent:
-        st.markdown('<div class="feedback-box">', unsafe_allow_html=True)
+        st.divider()
         st.markdown("**هل التوقع الأول صحيح؟**")
-
         col1, col2 = st.columns(2)
         with col1:
             if st.button("✅ نعم، صحيح", use_container_width=True):
@@ -203,7 +202,29 @@ if st.session_state.top_indices is not None:
                 st.session_state.feedback_sent = "wrong"
                 st.rerun()
 
-        st.markdown('</div>', unsafe_allow_html=True)
+    elif st.session_state.feedback_sent == "wrong":
+        st.divider()
+        st.markdown("**ما اسم الطبق الصحيح؟**")
+        fix = st.selectbox(
+            "اختر من القائمة",
+            options=[""] + names_ar,
+            index=0,
+            label_visibility="collapsed",
+        )
+        if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
+            top_name = names_ar[st.session_state.top_indices[0]]
+            log_file = "corrections.csv"
+            write_header = not os.path.exists(log_file)
+            with open(log_file, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                if write_header:
+                    writer.writerow(["التاريخ", "توقع النموذج", "الصحيح"])
+                writer.writerow([
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    top_name, fix,
+                ])
+            st.session_state.feedback_sent = "done"
+            st.rerun()
 
     elif st.session_state.feedback_sent == "correct":
         st.success("ممتاز! شكراً على تأكيدك 🎉")
