@@ -1,19 +1,19 @@
-"""Moroccan Food Classifier - Gradio demo.
-
 import json
-import gradio as gr
+import streamlit as st
 import numpy as np
 from PIL import Image
 from tensorflow import keras
-from google.colab import drive
 
-drive.mount('/content/drive')
-P = '/content/drive/MyDrive/food_project'
+st.set_page_config(page_title="ما هذا الطبق؟", page_icon="🍽️", layout="centered")
 
-model = keras.models.load_model(f'{P}/food_model_v1.keras')
-with open(f'{P}/food_classes.json') as f:
-    class_names = json.load(f)
-print("تم تحميل النموذج:", len(class_names), "فئة")
+@st.cache_resource
+def load_assets():
+    model = keras.models.load_model("food_model_v1.keras")
+    with open("food_classes.json", encoding="utf-8") as f:
+        class_names = json.load(f)
+    return model, class_names
+
+model, class_names = load_assets()
 
 AR = {
     "traditional macaroon": "ماكرون تقليدي",
@@ -90,24 +90,14 @@ AR = {
 }
 
 names_ar = [AR.get(c, c) for c in class_names]
-missing = [c for c in class_names if c not in AR]
-print("Categories without translation (will appear under their original name):", missing)
-
-def predict(img):
-    if img is None:
-        return None
-    img = img.convert('RGB').resize((224, 224))
-    x = np.expand_dims(np.array(img, dtype='float32'), axis=0)
-    probs = model.predict(x, verbose=0)[0]
-    return {names_ar[i]: float(probs[i]) for i in range(len(names_ar))}
 
 HERO = """
 <div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
             border-radius:20px;padding:30px 20px;text-align:center;color:white;
-            margin-bottom:14px;direction:rtl;">
+            margin-bottom:20px;direction:rtl;">
   <h1 style="margin:0 0 6px 0;font-size:1.9rem;color:white;">🍽️ ما هذا الطبق؟</h1>
   <p style="margin:0 0 14px 0;font-size:1.05rem;color:white;opacity:.95;">
-    📸 Upload or take a photo of a Moroccan dish — أرفع صورة أو التقطها</p>
+    📸 Upload or take a photo of a Moroccan dish — ارفع صورة أو التقطها</p>
   <span style="display:inline-block;background:rgba(255,255,255,.22);
                border:1px solid rgba(255,255,255,.55);border-radius:999px;
                padding:6px 18px;font-size:1rem;color:white;">
@@ -115,8 +105,29 @@ HERO = """
 </div>
 """
 
+st.markdown(HERO, unsafe_allow_html=True)
+
+uploaded_file = st.file_uploader("صورة الطبق (اختر صورة من جهازك)", type=["jpg", "jpeg", "png", "webp"])
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="الصورة المرفوعة", use_container_width=True)
+    
+    if st.button("🔍 ما اسم هذا الطبق؟", type="primary", use_container_width=True):
+        with st.spinner("جاري تحليل الطبق..."):
+            img_resized = image.convert("RGB").resize((224, 224))
+            x = np.expand_dims(np.array(img_resized, dtype="float32"), axis=0)
+            probs = model.predict(x, verbose=0)[0]
+            
+            top_indices = np.argsort(probs)[::-1][:3]
+            st.subheader("أقرب 3 توقعات (Top 3 Predictions):")
+            for idx in top_indices:
+                confidence = float(probs[idx])
+                st.write(f"**{names_ar[idx]}** — `{confidence * 100:.1f}%`")
+                st.progress(confidence)
+
 FOOT = """
-<div style="text-align:center;font-size:.9rem;opacity:.9;margin-top:12px;direction:ltr;">
+<div style="text-align:center;font-size:.85rem;opacity:.85;margin-top:25px;direction:ltr;">
 <div>⚠️ Educational project: The model only recognizes 70 specific dishes. If you show it something else
 (or something that is not food), it will select the closest match from those 70, which may result in an error. 
 For best results, use a clear, top-down photo of a single dish.</div>
@@ -125,13 +136,4 @@ For best results, use a clear, top-down photo of a single dish.</div>
 </div>
 """
 
-with gr.Blocks(title="ما هذا الطبق؟") as demo:
-    gr.HTML(HERO)
-    inp = gr.Image(type="pil", sources=["upload", "webcam"],
-                   label="صورة الطبق (ارفع صورة أو التقطها)", height=360)
-    btn = gr.Button("🔍 ما اسم هذا الطبق؟", variant="primary")
-    out = gr.Label(num_top_classes=3, label="Top 3 predictions")
-    gr.HTML(FOOT)
-    btn.click(predict, inputs=inp, outputs=out)
-
-demo.launch(share=True)
+st.markdown(FOOT, unsafe_allow_html=True)
