@@ -6,17 +6,6 @@ from tensorflow import keras
 
 st.set_page_config(page_title="ما هذا الطبق؟", page_icon="🍽️", layout="centered")
 
-st.markdown("""
-<style>
-    .stProgress > div > div > div > div {
-        background-color: #ea580c !important;
-    }
-    .reportview-container {
-        direction: rtl;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 @st.cache_resource
 def load_assets():
     model = keras.models.load_model("food_model_v1.keras")
@@ -131,11 +120,24 @@ if uploaded_file is not None:
             probs = model.predict(x, verbose=0)[0]
             
             top_indices = np.argsort(probs)[::-1][:3]
-            st.subheader("أقرب 3 توقعات (Top 3 Predictions):")
+            st.markdown("<h3 style='direction:rtl; text-align:right;'>أقرب 3 توقعات (Top 3 Predictions):</h3>", unsafe_allow_html=True)
+            
             for idx in top_indices:
-                confidence = float(probs[idx])
-                st.write(f"**{names_ar[idx]}** — `{confidence * 100:.1f}%`")
-                st.progress(confidence)
+                confidence = float(probs[idx]) * 100
+                dish_name = names_ar[idx]
+                
+                bar_html = f"""
+                <div style="margin-bottom: 12px; direction: rtl;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: bold;">
+                        <span>{dish_name}</span>
+                        <span>{confidence:.1f}%</span>
+                    </div>
+                    <div style="background-color: #333333; border-radius: 10px; overflow: hidden; height: 12px; width: 100%;">
+                        <div style="background-color: #ea580c; width: {confidence}%; height: 100%; border-radius: 10px;"></div>
+                    </div>
+                </div>
+                """
+                st.markdown(bar_html, unsafe_allow_html=True)
 
 FOOT = """
 <div style="text-align:center;font-size:.85rem;opacity:.85;margin-top:25px;direction:ltr;">
