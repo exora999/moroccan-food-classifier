@@ -39,7 +39,6 @@ def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str
     repo  = st.secrets["GITHUB_REPO"]
     url   = f"https://api.github.com/repos/{repo}/contents/{file_path}"
 
-    # ضغط وتجهيز الصورة بصيغة Base64
     img = Image.open(_io.BytesIO(img_bytes)).convert("RGB").resize((224, 224))
     buf = _io.BytesIO()
     img.save(buf, format="JPEG", quality=85)
@@ -71,7 +70,6 @@ def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
     repo  = st.secrets["GITHUB_REPO"]
     issues_url = f"https://api.github.com/repos/{repo}/issues"
 
-    # 1. حفظ الصورة في مسار آمن داخل مجلد training_corrections بدون حروف عربية في المسار
     import time
     file_name = f"correction_{int(time.time())}.jpg"
     file_path = f"training_corrections/{file_name}"
@@ -84,7 +82,6 @@ def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
 
     image_md = f"[🔗 عرض وتنزيل صورة التدريب]({img_url})" if img_url else "*تعذر رفع الصورة للمستودع*"
 
-    # 2. إنشاء الـ Issue
     data = json.dumps({
         "title": f"تصحيح: {wrong} ← {correct}",
         "body": (
