@@ -289,7 +289,8 @@ if st.session_state.top_indices is not None:
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;font-size:.85rem;color:#9ca3af;margin-top:35px;direction:ltr;border-top:1px solid rgba(255,255,255,0.1);padding-top:15px;">
-  ⚠️ This model recognizes 70 Moroccan dishes only.<br>
-  <b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0)
+  ⚠️ This model recognizes 70 Moroccan dishes only. | <b>Model Version:</b> v1.3<br>
+  <b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0) | 
+  <a href="https://github.com/exora999/moroccan-food-classifier" target="_blank" style="color: #fb923c; text-decoration: none;">GitHub Repository</a>
 </div>
 """, unsafe_allow_html=True)
