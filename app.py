@@ -1,11 +1,27 @@
+"""
+Moroccan Food Classifier — Streamlit version
+Deploy on Streamlit Community Cloud (share.streamlit.io)
+Needs: food_model_v1.keras  food_classes.json  in the same repo
+Author: Hamza Oulbayyad
+"""
+import csv
+import datetime
 import json
-import streamlit as st
+import os
+
 import numpy as np
+import streamlit as st
 from PIL import Image
 from tensorflow import keras
 
-st.set_page_config(page_title="ما هذا الطبق؟", page_icon="🍽️", layout="centered")
+# ── Page config ──────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="ما هذا الطبق؟ — Hamza Oulbayyad",
+    page_icon="🍽️",
+    layout="centered",
+)
 
+# ── Load model (cached so it loads only once) ─────────────────────────────────
 @st.cache_resource
 def load_assets():
     model = keras.models.load_model("food_model_v1.keras")
@@ -15,6 +31,8 @@ def load_assets():
 
 model, class_names = load_assets()
 
+# ── Arabic display names ──────────────────────────────────────────────────────
+# Note: some names are best guesses — please review before publishing
 AR = {
     "traditional macaroon": "ماكرون تقليدي",
     "tomatoes and onion salad": "سلطة الطماطم والبصل",
@@ -88,10 +106,10 @@ AR = {
     "kaak": "كعك",
     "liver with sauce": "كبدة بالصلصة",
 }
-
 names_ar = [AR.get(c, c) for c in class_names]
 
-HERO = """
+# ── Hero banner ───────────────────────────────────────────────────────────────
+st.markdown("""
 <div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
             border-radius:20px;padding:30px 20px;text-align:center;color:white;
             margin-bottom:20px;direction:rtl;">
@@ -103,50 +121,89 @@ HERO = """
                padding:6px 18px;font-size:1rem;color:white;">
      ✨ Created by: <b>Hamza Oulbayyad</b></span>
 </div>
-"""
+""", unsafe_allow_html=True)
 
-st.markdown(HERO, unsafe_allow_html=True)
+# ── Image input: upload OR camera ─────────────────────────────────────────────
+tab_upload, tab_camera = st.tabs(["📁 رفع صورة", "📷 تصوير مباشر"])
 
-uploaded_file = st.file_uploader("صورة الطبق (اختر صورة من جهازك)", type=["jpg", "jpeg", "png", "webp"])
+with tab_upload:
+    uploaded_file = st.file_uploader(
+        "اختر صورة من جهازك",
+        type=["jpg", "jpeg", "png", "webp"],
+        label_visibility="collapsed",
+    )
 
-if uploaded_file is not None:
-    image = Image.open(uploaded_file)
+with tab_camera:
+    camera_photo = st.camera_input("التقط صورة بالكاميرا")
+
+img_source = uploaded_file or camera_photo
+
+# ── Prediction ────────────────────────────────────────────────────────────────
+if img_source is not None:
+    image = Image.open(img_source)
     st.image(image, caption="الصورة المرفوعة", use_container_width=True)
-    
+
     if st.button("🔍 ما اسم هذا الطبق؟", type="primary", use_container_width=True):
         with st.spinner("جاري تحليل الطبق..."):
             img_resized = image.convert("RGB").resize((224, 224))
             x = np.expand_dims(np.array(img_resized, dtype="float32"), axis=0)
             probs = model.predict(x, verbose=0)[0]
-            
-            top_indices = np.argsort(probs)[::-1][:3]
-            st.markdown("<h3 style='direction:rtl; text-align:right;'>أقرب 3 توقعات (Top 3 Predictions):</h3>", unsafe_allow_html=True)
-            
-            for idx in top_indices:
-                confidence = float(probs[idx]) * 100
-                dish_name = names_ar[idx]
-                
-                bar_html = f"""
-                <div style="margin-bottom: 12px; direction: rtl;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: bold;">
-                        <span>{dish_name}</span>
-                        <span>{confidence:.1f}%</span>
-                    </div>
-                    <div style="background-color: #333333; border-radius: 10px; overflow: hidden; height: 12px; width: 100%;">
-                        <div style="background-color: #ea580c; width: {confidence}%; height: 100%; border-radius: 10px;"></div>
-                    </div>
-                </div>
-                """
-                st.markdown(bar_html, unsafe_allow_html=True)
 
-FOOT = """
+        top_indices = np.argsort(probs)[::-1][:3]
+        top_name = names_ar[top_indices[0]]
+
+        st.subheader("أقرب 3 توقعات (Top 3 Predictions):")
+        for rank, idx in enumerate(top_indices):
+            confidence = float(probs[idx])
+            emoji = "🥇" if rank == 0 else ("🥈" if rank == 1 else "🥉")
+            st.write(f"{emoji} **{names_ar[idx]}** — `{confidence * 100:.1f}%`")
+            st.progress(confidence)
+
+        # ── Feedback section ──────────────────────────────────────────────────
+        st.divider()
+        st.markdown("**هل التوقع صحيح؟**")
+        correct = st.radio(
+            "feedback",
+            ["✅ نعم، صحيح", "❌ لا، خطأ"],
+            horizontal=True,
+            index=None,
+            label_visibility="collapsed",
+        )
+
+        if correct == "✅ نعم، صحيح":
+            st.success("ممتاز! شكراً على تأكيدك 🎉")
+
+        elif correct == "❌ لا، خطأ":
+            fix = st.selectbox(
+                "ما اسم الطبق الصحيح؟",
+                options=names_ar,
+                index=None,
+                placeholder="اختر من القائمة...",
+            )
+            if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
+                log_file = "corrections.csv"
+                write_header = not os.path.exists(log_file)
+                with open(log_file, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    if write_header:
+                        writer.writerow(["التاريخ", "توقع النموذج", "الصحيح"])
+                    writer.writerow([
+                        datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        top_name,
+                        fix,
+                    ])
+                st.success(f"شكراً! تعلّمتُ أن الطبق هو **{fix}** 🎉")
+                st.info("سيتم مراجعة هذا التصحيح لاحقاً لتحسين النموذج.")
+
+# ── Footer ────────────────────────────────────────────────────────────────────
+st.markdown("""
 <div style="text-align:center;font-size:.85rem;opacity:.85;margin-top:25px;direction:ltr;">
-<div>⚠️ Educational project: The model only recognizes 70 specific dishes. If you show it something else
-(or something that is not food), it will select the closest match from those 70, which may result in an error. 
-For best results, use a clear, top-down photo of a single dish.</div>
-<div style="margin-top:8px;">Model design and training: <b>Hamza Oulbayyad</b>
-— Dataset: MFOOD_70 (licensed under CC BY-SA 4.0)</div>
+  <div>⚠️ Educational project: The model only recognizes 70 specific dishes.
+  If you show it something else it will pick the closest match, which may be wrong.
+  For best results, use a clear top-down photo of a single dish.</div>
+  <div style="margin-top:8px;">
+    Model design and training: <b>Hamza Oulbayyad</b> —
+    Dataset: MFOOD_70 (CC BY-SA 4.0)
+  </div>
 </div>
-"""
-
-st.markdown(FOOT, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
