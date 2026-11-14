@@ -1,23 +1,17 @@
 """
 Moroccan Food Classifier — Streamlit version
-Saves correction images + log to Google Drive
 Author: Hamza Oulbayyad
 """
-import csv, datetime, io, json, os
+import json, os, io
 import numpy as np
 import streamlit as st
 from PIL import Image
 from tensorflow import keras
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 
-# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ما هذا الطبق؟ — Hamza Oulbayyad",
     page_icon="🍽️", layout="centered")
 
-# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
   .bar-wrap{margin:6px 0 14px 0;direction:rtl}
@@ -35,49 +29,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── Google Drive ──────────────────────────────────────────────────────────────
-@st.cache_resource
-def get_drive():
-    creds = service_account.Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=["https://www.googleapis.com/auth/drive"])
-    return build("drive", "v3", credentials=creds)
-
-FOLDER_ID = st.secrets["DRIVE_FOLDER_ID"]
-
-def upload_to_drive(drive, filename, data: bytes, mime="image/jpeg"):
-    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime)
-    drive.files().create(
-        body={"name": filename, "parents": [FOLDER_ID]},
-        media_body=media).execute()
-
-def append_log(drive, row: list):
-    """يبحث عن corrections_log.csv في Drive أو ينشئه"""
-    fname = "corrections_log.csv"
-    res = drive.files().list(
-        q=f"name='{fname}' and '{FOLDER_ID}' in parents and trashed=false",
-        fields="files(id)").execute()
-    files = res.get("files", [])
-
-    if files:
-        content = drive.files().get_media(fileId=files[0]["id"]).execute()
-        existing = content.decode("utf-8")
-    else:
-        existing = "التاريخ,توقع النموذج,الصحيح\n"
-
-    new_line = ",".join(row) + "\n"
-    updated = (existing + new_line).encode("utf-8")
-    media = MediaIoBaseUpload(io.BytesIO(updated), mimetype="text/csv")
-
-    if files:
-        drive.files().update(fileId=files[0]["id"],
-                             media_body=media).execute()
-    else:
-        drive.files().create(
-            body={"name": fname, "parents": [FOLDER_ID]},
-            media_body=media).execute()
-
-# ── Load model ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_assets():
     model = keras.models.load_model("food_model_v1.keras")
@@ -87,7 +38,6 @@ def load_assets():
 
 model, class_names = load_assets()
 
-# ── Arabic names ──────────────────────────────────────────────────────────────
 AR = {
     "traditional macaroon":"ماكرون تقليدي","tomatoes and onion salad":"سلطة الطماطم والبصل",
     "TAKTOUKA":"تكتوكة","zitoun":"زيتون","sweet bread":"خبز حلو","tkalya":"تقلية",
@@ -115,12 +65,10 @@ AR = {
 }
 names_ar = [AR.get(c, c) for c in class_names]
 
-# ── Session state ─────────────────────────────────────────────────────────────
-for key in ("top_indices","probs","feedback_sent","img_bytes"):
+for key in ("top_indices","probs","feedback_sent"):
     if key not in st.session_state:
         st.session_state[key] = None
 
-# ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
             border-radius:20px;padding:30px 20px;text-align:center;color:white;
@@ -135,7 +83,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Image input ───────────────────────────────────────────────────────────────
 tab_upload, tab_camera = st.tabs(["📁 رفع صورة","📷 تصوير مباشر"])
 with tab_upload:
     uploaded_file = st.file_uploader(
@@ -146,7 +93,6 @@ with tab_camera:
 
 img_source = uploaded_file or camera_photo
 
-# ── Predict ───────────────────────────────────────────────────────────────────
 if img_source is not None:
     image = Image.open(img_source)
     st.image(image, caption="الصورة المرفوعة", use_container_width=True)
@@ -159,11 +105,7 @@ if img_source is not None:
         st.session_state.probs = probs
         st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
         st.session_state.feedback_sent = False
-        buf = io.BytesIO()
-        image.convert("RGB").save(buf, format="JPEG")
-        st.session_state.img_bytes = buf.getvalue()
 
-# ── Results ───────────────────────────────────────────────────────────────────
 if st.session_state.top_indices is not None:
     medals = ["🥇","🥈","🥉"]
     ranks  = ["rank-1","rank-2","rank-3"]
@@ -179,7 +121,6 @@ if st.session_state.top_indices is not None:
           </div>
         </div>""", unsafe_allow_html=True)
 
-    # ── Feedback ──────────────────────────────────────────────────────────────
     if not st.session_state.feedback_sent:
         st.divider()
         st.markdown("**هل التوقع الأول صحيح؟**")
@@ -204,31 +145,16 @@ if st.session_state.top_indices is not None:
             options=[""] + names_ar,
             index=0,
             label_visibility="collapsed")
-
         if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
-            top_name = names_ar[st.session_state.top_indices[0]]
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-
-            with st.spinner("جاري الحفظ في Drive..."):
-                try:
-                    drive = get_drive()
-                    img_filename = f"{timestamp}_{top_name}_{fix}.jpg"
-                    upload_to_drive(drive, img_filename,
-                                    st.session_state.img_bytes)
-                    append_log(drive, [timestamp, top_name, fix])
-                    st.session_state.feedback_sent = "done"
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"خطأ في الحفظ: {e}")
+            st.session_state.feedback_sent = "done"
+            st.rerun()
 
     elif st.session_state.feedback_sent == "done":
-        st.success("شكراً! تم حفظ الصورة والتصحيح في Drive 🎉")
-        st.info("سأراجعها لاحقاً لتحسين النموذج.")
+        st.success("شكراً! تم تسجيل ملاحظتك 🎉")
 
-# ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;font-size:.85rem;opacity:.8;margin-top:30px;direction:ltr;">
-  ⚠️ This model recognizes 70 Moroccan dishes only — results may be wrong outside this list.<br>
+  ⚠️ This model recognizes 70 Moroccan dishes only.<br>
   <b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0)
 </div>
 """, unsafe_allow_html=True)
