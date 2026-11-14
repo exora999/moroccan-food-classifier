@@ -1,45 +1,81 @@
 """
 Moroccan Food Classifier — Streamlit version
-Deploy on Streamlit Community Cloud (share.streamlit.io)
-Needs: food_model_v1.keras  food_classes.json  in the same repo
+Saves correction images + log to Google Drive
 Author: Hamza Oulbayyad
 """
-import csv
-import datetime
-import json
-import os
-
+import csv, datetime, io, json, os
 import numpy as np
 import streamlit as st
 from PIL import Image
 from tensorflow import keras
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ما هذا الطبق؟ — Hamza Oulbayyad",
-    page_icon="🍽️",
-    layout="centered",
-)
+    page_icon="🍽️", layout="centered")
 
+# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  .bar-wrap { margin: 6px 0 14px 0; direction: rtl; }
-  .bar-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; color: #ea580c; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
-  .bar-track { background: #f0f0f0; border-radius: 999px; height: 22px; width: 100%;
-               overflow: hidden; }
-  .bar-fill  { height: 22px; border-radius: 999px;
-               background: linear-gradient(90deg, #9a3412, #ea580c, #fdba74);
-               display: flex; align-items: center; padding-right: 10px;
-               justify-content: flex-end; color: white; font-size: .85rem;
-               font-weight: 700; min-width: 44px; transition: width .4s ease; }
-  .rank-1 .bar-fill { background: linear-gradient(90deg,#9a3412,#ea580c,#fdba74); }
-  .rank-2 .bar-fill { background: linear-gradient(90deg,#78350f,#b45309,#fcd34d); opacity:.85; }
-  .rank-3 .bar-fill { background: linear-gradient(90deg,#57534e,#78716c,#d6d3d1); opacity:.75; }
-  .stButton > button { border-radius: 14px !important; }
-  .feedback-box { background:#fafafa; border:1px solid #e5e7eb;
-                  border-radius:14px; padding:18px 16px; margin-top:14px; direction:rtl; }
+  .bar-wrap{margin:6px 0 14px 0;direction:rtl}
+  .bar-label{font-size:1.05rem;font-weight:600;margin-bottom:4px;
+             color:#ea580c;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .bar-track{background:#f0f0f0;border-radius:999px;height:22px;
+             width:100%;overflow:hidden}
+  .bar-fill{height:22px;border-radius:999px;display:flex;align-items:center;
+            padding-right:10px;justify-content:flex-end;color:white;
+            font-size:.85rem;font-weight:700;min-width:44px}
+  .rank-1 .bar-fill{background:linear-gradient(90deg,#9a3412,#ea580c,#fdba74)}
+  .rank-2 .bar-fill{background:linear-gradient(90deg,#78350f,#b45309,#fcd34d);opacity:.85}
+  .rank-3 .bar-fill{background:linear-gradient(90deg,#57534e,#78716c,#d6d3d1);opacity:.75}
+  .stButton>button{border-radius:14px!important}
 </style>
 """, unsafe_allow_html=True)
+
+# ── Google Drive ──────────────────────────────────────────────────────────────
+@st.cache_resource
+def get_drive():
+    creds = service_account.Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"],
+        scopes=["https://www.googleapis.com/auth/drive"])
+    return build("drive", "v3", credentials=creds)
+
+FOLDER_ID = st.secrets["DRIVE_FOLDER_ID"]
+
+def upload_to_drive(drive, filename, data: bytes, mime="image/jpeg"):
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime)
+    drive.files().create(
+        body={"name": filename, "parents": [FOLDER_ID]},
+        media_body=media).execute()
+
+def append_log(drive, row: list):
+    """يبحث عن corrections_log.csv في Drive أو ينشئه"""
+    fname = "corrections_log.csv"
+    res = drive.files().list(
+        q=f"name='{fname}' and '{FOLDER_ID}' in parents and trashed=false",
+        fields="files(id)").execute()
+    files = res.get("files", [])
+
+    if files:
+        content = drive.files().get_media(fileId=files[0]["id"]).execute()
+        existing = content.decode("utf-8")
+    else:
+        existing = "التاريخ,توقع النموذج,الصحيح\n"
+
+    new_line = ",".join(row) + "\n"
+    updated = (existing + new_line).encode("utf-8")
+    media = MediaIoBaseUpload(io.BytesIO(updated), mimetype="text/csv")
+
+    if files:
+        drive.files().update(fileId=files[0]["id"],
+                             media_body=media).execute()
+    else:
+        drive.files().create(
+            body={"name": fname, "parents": [FOLDER_ID]},
+            media_body=media).execute()
 
 # ── Load model ────────────────────────────────────────────────────────────────
 @st.cache_resource
@@ -53,82 +89,34 @@ model, class_names = load_assets()
 
 # ── Arabic names ──────────────────────────────────────────────────────────────
 AR = {
-    "traditional macaroon": "ماكرون تقليدي",
-    "tomatoes and onion salad": "سلطة الطماطم والبصل",
-    "TAKTOUKA": "تكتوكة",
-    "zitoun": "زيتون",
-    "sweet bread": "خبز حلو",
-    "tkalya": "تقلية",
-    "sellou": "سلّو",
-    "amlou": "أملو",
-    "sfenje": "سفنج",
-    "snowballs": "كرات الثلج",
-    "traditional bread": "خبز تقليدي",
-    "white beans with tomatoes": "لوبيا بيضاء بالطماطم",
-    "tagine with quince": "طاجين بالسفرجل",
-    "tagine with vegetables": "طاجين بالخضار",
-    "tagine with artichokes and peas": "طاجين بالخرشوف والبازلاء",
-    "seffa with rice": "سفة بالأرز",
-    "crackers with almonds (ghriba)": "غريبة باللوز",
-    "nougat": "نوغا",
-    "fekkas": "فقاص",
-    "better beldi": "زبدة بلدية",
-    "chebakia": "شباكية",
-    "gazelle horn": "كعب الغزال",
-    "BISSARA(feves puree)": "بيصارة",
-    "maakouda": "معقودة",
-    "FEVES with sauce": "فول بالصلصة",
-    "chicken with potatoes and olives": "دجاج بالبطاطس والزيتون",
-    "bahla": "بهلة",
-    "Feet of beef": "كرعين البقر",
-    "lentils": "عدس",
-    "briouate  with almonds": "بريوات باللوز",
-    "briouate with almonds": "بريوات باللوز",
-    "meatball with tomato sauce": "كفتة بصلصة الطماطم",
-    "salmon": "سلمون",
-    "jam": "مربى",
-    "basbousa": "بسبوسة",
-    "apple": "تفاح",
-    "banana": "موز",
-    "batbout": "بطبوط",
-    "beghrir": "بغرير",
-    "caesar salad": "سلطة سيزر",
-    "chicken basstila": "بسطيلة بالدجاج",
-    "chicken nuggets": "ناجتس الدجاج",
-    "chocolate cake": "كعكة الشوكولاتة",
-    "couscous": "كسكس",
-    "croissant": "كرواسون",
-    "dates": "تمر",
-    "fish and vegetables": "سمك بالخضار",
-    "fish basstila": "بسطيلة بالسمك",
-    "french fries": "بطاطس مقلية",
-    "fried calamari": "حبّار مقلي",
-    "hamburger": "همبرغر",
-    "harcha": "حرشة",
-    "harira": "حريرة",
-    "lasagne": "لازانيا",
-    "meat brochettes": "أسياخ لحم مشوي",
-    "msamen": "مسمن",
-    "omelette": "عجّة (أومليت)",
-    "orange": "برتقال",
-    "paella": "باييا",
-    "pear": "إجاص",
-    "pizza": "بيتزا",
-    "rfissa": "رفيسة",
-    "roasted chicken": "دجاج مشوي",
-    "seffa": "سفة",
-    "spagetti": "سباغيتي",
-    "tagine with beef": "طاجين باللحم",
-    "zaalouk": "زعلوك",
-    "mhancha": "محنشة",
-    "rghayf": "رغايف",
-    "kaak": "كعك",
-    "liver with sauce": "كبدة بالصلصة",
+    "traditional macaroon":"ماكرون تقليدي","tomatoes and onion salad":"سلطة الطماطم والبصل",
+    "TAKTOUKA":"تكتوكة","zitoun":"زيتون","sweet bread":"خبز حلو","tkalya":"تقلية",
+    "sellou":"سلّو","amlou":"أملو","sfenje":"سفنج","snowballs":"كرات الثلج",
+    "traditional bread":"خبز تقليدي","white beans with tomatoes":"لوبيا بيضاء بالطماطم",
+    "tagine with quince":"طاجين بالسفرجل","tagine with vegetables":"طاجين بالخضار",
+    "tagine with artichokes and peas":"طاجين بالخرشوف والبازلاء","seffa with rice":"سفة بالأرز",
+    "crackers with almonds (ghriba)":"غريبة باللوز","nougat":"نوغا","fekkas":"فقاص",
+    "better beldi":"زبدة بلدية","chebakia":"شباكية","gazelle horn":"كعب الغزال",
+    "BISSARA(feves puree)":"بيصارة","maakouda":"معقودة","FEVES with sauce":"فول بالصلصة",
+    "chicken with potatoes and olives":"دجاج بالبطاطس والزيتون","bahla":"بهلة",
+    "Feet of beef":"كرعين البقر","lentils":"عدس","briouate  with almonds":"بريوات باللوز",
+    "briouate with almonds":"بريوات باللوز","meatball with tomato sauce":"كفتة بصلصة الطماطم",
+    "salmon":"سلمون","jam":"مربى","basbousa":"بسبوسة","apple":"تفاح","banana":"موز",
+    "batbout":"بطبوط","beghrir":"بغرير","caesar salad":"سلطة سيزر",
+    "chicken basstila":"بسطيلة بالدجاج","chicken nuggets":"ناجتس الدجاج",
+    "chocolate cake":"كعكة الشوكولاتة","couscous":"كسكس","croissant":"كرواسون",
+    "dates":"تمر","fish and vegetables":"سمك بالخضار","fish basstila":"بسطيلة بالسمك",
+    "french fries":"بطاطس مقلية","fried calamari":"حبّار مقلي","hamburger":"همبرغر",
+    "harcha":"حرشة","harira":"حريرة","lasagne":"لازانيا","meat brochettes":"أسياخ لحم مشوي",
+    "msamen":"مسمن","omelette":"عجّة (أومليت)","orange":"برتقال","paella":"باييا",
+    "pear":"إجاص","pizza":"بيتزا","rfissa":"رفيسة","roasted chicken":"دجاج مشوي",
+    "seffa":"سفة","spagetti":"سباغيتي","tagine with beef":"طاجين باللحم","zaalouk":"زعلوك",
+    "mhancha":"محنشة","rghayf":"رغايف","kaak":"كعك","liver with sauce":"كبدة بالصلصة",
 }
 names_ar = [AR.get(c, c) for c in class_names]
 
 # ── Session state ─────────────────────────────────────────────────────────────
-for key in ("top_indices", "probs", "feedback_sent"):
+for key in ("top_indices","probs","feedback_sent","img_bytes"):
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -148,7 +136,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Image input ───────────────────────────────────────────────────────────────
-tab_upload, tab_camera = st.tabs(["📁 رفع صورة", "📷 تصوير مباشر"])
+tab_upload, tab_camera = st.tabs(["📁 رفع صورة","📷 تصوير مباشر"])
 with tab_upload:
     uploaded_file = st.file_uploader(
         "اختر صورة", type=["jpg","jpeg","png","webp"],
@@ -158,7 +146,7 @@ with tab_camera:
 
 img_source = uploaded_file or camera_photo
 
-# ── Predict button ────────────────────────────────────────────────────────────
+# ── Predict ───────────────────────────────────────────────────────────────────
 if img_source is not None:
     image = Image.open(img_source)
     st.image(image, caption="الصورة المرفوعة", use_container_width=True)
@@ -171,11 +159,14 @@ if img_source is not None:
         st.session_state.probs = probs
         st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
         st.session_state.feedback_sent = False
+        buf = io.BytesIO()
+        image.convert("RGB").save(buf, format="JPEG")
+        st.session_state.img_bytes = buf.getvalue()
 
 # ── Results ───────────────────────────────────────────────────────────────────
 if st.session_state.top_indices is not None:
-    medals = ["🥇", "🥈", "🥉"]
-    ranks  = ["rank-1", "rank-2", "rank-3"]
+    medals = ["🥇","🥈","🥉"]
+    ranks  = ["rank-1","rank-2","rank-3"]
     st.markdown("### أقرب 3 توقعات (Top 3 Predictions)")
 
     for i, idx in enumerate(st.session_state.top_indices):
@@ -186,9 +177,9 @@ if st.session_state.top_indices is not None:
           <div class="bar-track">
             <div class="bar-fill" style="width:{pct:.1f}%">{pct:.1f}%</div>
           </div>
-        </div>
-        """, unsafe_allow_html=True)
+        </div>""", unsafe_allow_html=True)
 
+    # ── Feedback ──────────────────────────────────────────────────────────────
     if not st.session_state.feedback_sent:
         st.divider()
         st.markdown("**هل التوقع الأول صحيح؟**")
@@ -202,6 +193,9 @@ if st.session_state.top_indices is not None:
                 st.session_state.feedback_sent = "wrong"
                 st.rerun()
 
+    elif st.session_state.feedback_sent == "correct":
+        st.success("ممتاز! شكراً على تأكيدك 🎉")
+
     elif st.session_state.feedback_sent == "wrong":
         st.divider()
         st.markdown("**ما اسم الطبق الصحيح؟**")
@@ -209,59 +203,32 @@ if st.session_state.top_indices is not None:
             "اختر من القائمة",
             options=[""] + names_ar,
             index=0,
-            label_visibility="collapsed",
-        )
+            label_visibility="collapsed")
+
         if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
             top_name = names_ar[st.session_state.top_indices[0]]
-            log_file = "corrections.csv"
-            write_header = not os.path.exists(log_file)
-            with open(log_file, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                if write_header:
-                    writer.writerow(["التاريخ", "توقع النموذج", "الصحيح"])
-                writer.writerow([
-                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    top_name, fix,
-                ])
-            st.session_state.feedback_sent = "done"
-            st.rerun()
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
 
-    elif st.session_state.feedback_sent == "correct":
-        st.success("ممتاز! شكراً على تأكيدك 🎉")
-
-    elif st.session_state.feedback_sent == "wrong":
-        st.markdown('<div class="feedback-box">', unsafe_allow_html=True)
-        st.markdown("**ما اسم الطبق الصحيح؟**")
-        fix = st.selectbox(
-            "اختر من القائمة",
-            options=[""] + names_ar,
-            index=0,
-            label_visibility="collapsed",
-        )
-        if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
-            top_name = names_ar[st.session_state.top_indices[0]]
-            log_file = "corrections.csv"
-            write_header = not os.path.exists(log_file)
-            with open(log_file, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                if write_header:
-                    writer.writerow(["التاريخ", "توقع النموذج", "الصحيح"])
-                writer.writerow([
-                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    top_name, fix,
-                ])
-            st.session_state.feedback_sent = "done"
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+            with st.spinner("جاري الحفظ في Drive..."):
+                try:
+                    drive = get_drive()
+                    img_filename = f"{timestamp}_{top_name}_{fix}.jpg"
+                    upload_to_drive(drive, img_filename,
+                                    st.session_state.img_bytes)
+                    append_log(drive, [timestamp, top_name, fix])
+                    st.session_state.feedback_sent = "done"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"خطأ في الحفظ: {e}")
 
     elif st.session_state.feedback_sent == "done":
-        fix_name = ""
-        st.success(f"شكراً! تعلّمتُ منك 🎉 — سيتم مراجعة هذا التصحيح لاحقاً.")
+        st.success("شكراً! تم حفظ الصورة والتصحيح في Drive 🎉")
+        st.info("سأراجعها لاحقاً لتحسين النموذج.")
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;font-size:.85rem;opacity:.8;margin-top:30px;direction:ltr;">
-  ⚠️ Educational project: 70 dishes only — results may be wrong outside this list.<br>
+  ⚠️ This model recognizes 70 Moroccan dishes only — results may be wrong outside this list.<br>
   <b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0)
 </div>
 """, unsafe_allow_html=True)
