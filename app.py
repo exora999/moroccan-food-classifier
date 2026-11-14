@@ -11,30 +11,70 @@ from tensorflow import keras
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ما هذا الطبق؟ — Hamza Oulbayyad",
+    page_title="Moroccan Food Classifier — Hamza Oulbayyad",
     page_icon="🍽️", layout="centered")
 
-# ── CSS ───────────────────────────────────────────────────────────────────────
+# ── Stunning Dark Glassmorphism CSS ──────────────────────────────────────────
 st.markdown("""
 <style>
-  .bar-wrap{margin:6px 0 14px 0;direction:rtl}
-  .bar-label{font-size:1.05rem;font-weight:600;margin-bottom:4px;
-             color:#ea580c;text-shadow:0 1px 2px rgba(0,0,0,.4)}
-  .bar-track{background:#f0f0f0;border-radius:999px;height:22px;
-             width:100%;overflow:hidden}
-  .bar-fill{height:22px;border-radius:999px;display:flex;align-items:center;
-            padding-right:10px;justify-content:flex-end;color:white;
-            font-size:.85rem;font-weight:700;min-width:44px}
-  .rank-1 .bar-fill{background:linear-gradient(90deg,#9a3412,#ea580c,#fdba74)}
-  .rank-2 .bar-fill{background:linear-gradient(90deg,#78350f,#b45309,#fcd34d);opacity:.85}
-  .rank-3 .bar-fill{background:linear-gradient(90deg,#57534e,#78716c,#d6d3d1);opacity:.75}
-  .stButton>button{border-radius:14px!important}
+  /* خلفية مظلمة فخمة وناعمة تريح العين */
+  .stApp {
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 60%, #020617 100%);
+      color: #f3f4f6;
+  }
+  
+  /* تحسين مظهر الأشرطة النسبية بتصميم مظلم متناسق */
+  .bar-wrap{margin:8px 0 16px 0;direction:rtl}
+  .bar-label{font-size:1.1rem;font-weight:700;margin-bottom:6px;
+             color:#fb923c;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .bar-track{background:rgba(255, 255, 255, 0.08);border-radius:999px;height:24px;
+             width:100%;overflow:hidden;box-shadow: inset 0 2px 4px rgba(0,0,0,.4);
+             border: 1px solid rgba(255, 255, 255, 0.05);}
+  .bar-fill{height:24px;border-radius:999px;display:flex;align-items:center;
+            padding-right:12px;justify-content:flex-end;color:white;
+            font-size:.9rem;font-weight:700;min-width:48px;
+            transition: width 1s ease-in-out;}
+  .rank-1 .bar-fill{background:linear-gradient(90deg,#c2410c,#ea580c,#fb923c)}
+  .rank-2 .bar-fill{background:linear-gradient(90deg,#9a3412,#d97706,#fcd34d);opacity:.95}
+  .rank-3 .bar-fill{background:linear-gradient(90deg,#374151,#4b5563,#9ca3af);opacity:.9}
+
+  /* أزرار تفاعلية عصرية ذات مظهر زجاجي متحرك */
+  .stButton>button {
+      border-radius: 14px !important;
+      font-weight: 700 !important;
+      background: rgba(255, 255, 255, 0.05) !important;
+      border: 1px solid rgba(255, 255, 255, 0.15) !important;
+      color: #ffffff !important;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  }
+  .stButton>button:hover {
+      background: linear-gradient(135deg, #ea580c, #c2410c) !important;
+      border-color: #fb923c !important;
+      transform: translateY(-2px) scale(1.02) !important;
+      box-shadow: 0 10px 20px -3px rgba(234, 88, 12, 0.4) !important;
+  }
+  
+  /* تنسيق الصناديق والتبويبات بلمسة زجاجية */
+  .stTabs [data-baseweb="tab-list"] {
+      gap: 10px;
+  }
+  .stTabs [data-baseweb="tab"] {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 10px 22px;
+      color: #e5e7eb;
+      font-weight: 600;
+  }
+  .stTabs [data-baseweb="tab"]:hover {
+      background-color: rgba(234, 88, 12, 0.2);
+  }
 </style>
 """, unsafe_allow_html=True)
 
 # ── GitHub Integration (Issue + Image Upload) ─────────────────────────────────
 def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str):
-    """يرفع الصورة مباشرة إلى مستودع GitHub بشكل آمن"""
     token = st.secrets["GITHUB_TOKEN"]
     repo  = st.secrets["GITHUB_REPO"]
     url   = f"https://api.github.com/repos/{repo}/contents/{file_path}"
@@ -65,7 +105,6 @@ def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str
         return None
 
 def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
-    """يفتح Issue في GitHub ويرفق معه رابط الصورة المحفوظة في المستودع"""
     token = st.secrets["GITHUB_TOKEN"]
     repo  = st.secrets["GITHUB_REPO"]
     issues_url = f"https://api.github.com/repos/{repo}/issues"
@@ -80,15 +119,15 @@ def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
         commit_message=f"Add training image for correct dish: {correct} (Predicted: {wrong})"
     )
 
-    image_md = f"[🔗 عرض وتنزيل صورة التدريب]({img_url})" if img_url else "*تعذر رفع الصورة للمستودع*"
+    image_md = f"[🔗 View & Download Training Image]({img_url})" if img_url else "*Failed to upload image to repository*"
 
     data = json.dumps({
-        "title": f"تصحيح: {wrong} ← {correct}",
+        "title": f"Correction: {wrong} ← {correct}",
         "body": (
-            f"**توقع النموذج:** {wrong}\n\n"
-            f"**الطبق الصحيح:** {correct}\n\n"
-            f"**صورة التدريب:** {image_md}\n\n"
-            f"*تصحيح تلقائي من المستخدم*"
+            f"**Model Prediction:** {wrong}\n\n"
+            f"**Correct Dish:** {correct}\n\n"
+            f"**Training Image:** {image_md}\n\n"
+            f"*Automatic correction from user*"
         ),
         "labels": ["correction", "training-data"],
     }).encode("utf-8")
@@ -148,44 +187,43 @@ for key in ("top_indices","probs","feedback_sent","img_bytes"):
 
 # ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
-            border-radius:20px;padding:30px 20px;text-align:center;color:white;
-            margin-bottom:20px;direction:rtl;">
-  <h1 style="margin:0 0 6px 0;font-size:1.9rem;color:white;">🍽️ ما هذا الطبق؟</h1>
-  <p style="margin:0 0 14px 0;font-size:1.05rem;color:white;opacity:.95;">
-    📸 Upload or take a photo of a Moroccan dish — ارفع صورة أو التقطها</p>
-  <span style="display:inline-block;background:rgba(255,255,255,.22);
-                border:1px solid rgba(255,255,255,.55);border-radius:999px;
-                padding:6px 18px;font-size:1rem;color:white;">
+<div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fb923c);
+            border-radius:24px;padding:35px 20px;text-align:center;color:white;
+            margin-bottom:25px; box-shadow: 0 15px 30px -5px rgba(234, 88, 12, 0.3);">
+  <h1 style="margin:0 0 8px 0;font-size:2.1rem;color:white;text-shadow:0 2px 4px rgba(0,0,0,0.3);">🍽️ Moroccan Food Classifier</h1>
+  <p style="margin:0 0 16px 0;font-size:1.1rem;color:white;opacity:.95;">
+    📸 Upload or take a photo of a Moroccan dish</p>
+  <span style="display:inline-block;background:rgba(255,255,255,0.2);
+                border:1px solid rgba(255,255,255,0.5);border-radius:999px;
+                padding:8px 22px;font-size:1.05rem;color:white;backdrop-filter: blur(5px);">
       ✨ Created by: <b>Hamza Oulbayyad</b></span>
 </div>
 """, unsafe_allow_html=True)
 
 # ── Image input ───────────────────────────────────────────────────────────────
-tab_upload, tab_camera = st.tabs(["📁 رفع صورة","📷 تصوير مباشر"])
+tab_upload, tab_camera = st.tabs(["📁 Upload Image", "📷 Live Camera"])
 with tab_upload:
     uploaded_file = st.file_uploader(
-        "اختر صورة", type=["jpg","jpeg","png","webp"],
+        "Choose an image", type=["jpg","jpeg","png","webp"],
         label_visibility="collapsed")
 with tab_camera:
-    camera_photo = st.camera_input("التقط صورة بالكاميرا")
+    camera_photo = st.camera_input("Take a photo with the camera")
 
 img_source = uploaded_file or camera_photo
 
 # ── Predict ───────────────────────────────────────────────────────────────────
 if img_source is not None:
     image = Image.open(img_source)
-    st.image(image, caption="الصورة المرفوعة", use_container_width=True)
+    st.image(image, caption="Uploaded Image", use_container_width=True)
 
-    if st.button("🔍 ما اسم هذا الطبق؟", type="primary", use_container_width=True):
-        with st.spinner("جاري تحليل الطبق..."):
+    if st.button("🔍 What is this dish?", type="primary", use_container_width=True):
+        with st.spinner("Analyzing the dish..."):
             img_r = image.convert("RGB").resize((224, 224))
             x = np.expand_dims(np.array(img_r, dtype="float32"), axis=0)
             probs = model.predict(x, verbose=0)[0]
         st.session_state.probs = probs
         st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
         st.session_state.feedback_sent = False
-        # احفظ الصورة في الذاكرة
         buf = _io.BytesIO()
         image.convert("RGB").save(buf, format="JPEG")
         st.session_state.img_bytes = buf.getvalue()
@@ -194,7 +232,7 @@ if img_source is not None:
 if st.session_state.top_indices is not None:
     medals = ["🥇","🥈","🥉"]
     ranks  = ["rank-1","rank-2","rank-3"]
-    st.markdown("### أقرب 3 توقعات (Top 3 Predictions)")
+    st.markdown("### Top 3 Predictions")
 
     for i, idx in enumerate(st.session_state.top_indices):
         pct = st.session_state.probs[idx] * 100
@@ -209,32 +247,32 @@ if st.session_state.top_indices is not None:
     # ── Feedback ──────────────────────────────────────────────────────────────
     if not st.session_state.feedback_sent:
         st.divider()
-        st.markdown("**هل التوقع الأول صحيح؟**")
+        st.markdown("**Is the top prediction correct? / هل التوقع الأول صحيح؟**")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("✅ نعم، صحيح", use_container_width=True):
+            if st.button("✅ Yes, Correct / نعم، صحيح", use_container_width=True):
                 st.session_state.feedback_sent = "correct"
                 st.rerun()
         with col2:
-            if st.button("❌ لا، خطأ", use_container_width=True):
+            if st.button("❌ No, Wrong / لا، خطأ", use_container_width=True):
                 st.session_state.feedback_sent = "wrong"
                 st.rerun()
 
     elif st.session_state.feedback_sent == "correct":
-        st.success("ممتاز! شكراً على تأكيدك 🎉")
+        st.success("Great! Thanks for confirming 🎉 / ممتاز! شكراً على تأكيدك")
 
     elif st.session_state.feedback_sent == "wrong":
         st.divider()
-        st.markdown("**ما اسم الطبق الصحيح؟**")
+        st.markdown("**What is the correct dish? / ما اسم الطبق الصحيح؟**")
         fix = st.selectbox(
-            "اختر من القائمة",
+            "Select from the list",
             options=[""] + names_ar,
             index=0,
             label_visibility="collapsed")
 
-        if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
+        if fix and st.button("📨 Submit Correction / إرسال التصحيح", use_container_width=True):
             wrong_name = names_ar[st.session_state.top_indices[0]]
-            with st.spinner("جاري حفظ الصورة وإنشاء التقرير على GitHub..."):
+            with st.spinner("Saving image and creating GitHub issue..."):
                 try:
                     issue_url = create_github_issue(
                         wrong_name, fix,
@@ -242,15 +280,15 @@ if st.session_state.top_indices is not None:
                     st.session_state.feedback_sent = "done"
                     st.rerun()
                 except Exception as e:
-                    st.error(f"خطأ: {e}")
+                    st.error(f"Error: {e}")
 
     elif st.session_state.feedback_sent == "done":
-        st.success("شكراً! تم حفظ الصورة وتوثيق التصحيح في مستودع GitHub بنجاح 🎉")
-        st.info("ستتمكن من استخدام هذه الصور لاحقاً لإعادة تدريب النموذج.")
+        st.success("Thank you! Image saved and correction documented on GitHub successfully 🎉")
+        st.info("You can use these images later to retrain your model.")
 
-# ── Footer ────────────────────────────────────────────────________________────
+# ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style="text-align:center;font-size:.85rem;opacity:.8;margin-top:30px;direction:ltr;">
+<div style="text-align:center;font-size:.85rem;color:#9ca3af;margin-top:35px;direction:ltr;border-top:1px solid rgba(255,255,255,0.1);padding-top:15px;">
   ⚠️ This model recognizes 70 Moroccan dishes only.<br>
   <b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0)
 </div>
