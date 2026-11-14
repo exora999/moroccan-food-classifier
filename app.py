@@ -6,14 +6,11 @@ from tensorflow import keras
 
 st.set_page_config(page_title="ما هذا الطبق؟", page_icon="🍽️", layout="centered")
 
-# تخصيص الألوان لتكون باللون البرتقالي المطابق للتصميم الأصلي
 st.markdown("""
 <style>
-    /* تلوين أشرطة التقدم بالبرتقالي */
     .stProgress > div > div > div > div {
         background-color: #ea580c !important;
     }
-    /* تنسيق عام للخطوط والاتجاه */
     .reportview-container {
         direction: rtl;
     }
