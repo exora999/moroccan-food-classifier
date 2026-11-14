@@ -1,6 +1,6 @@
 """
 Moroccan Food Classifier — Streamlit version
-Saves corrections as GitHub Issues
+Saves corrections and failed images directly to GitHub Repository
 Author: Hamza Oulbayyad
 """
 import json, urllib.request, urllib.parse, base64, io as _io
@@ -32,33 +32,72 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── GitHub Issues ─────────────────────────────────────────────────────────────
-def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
-    """يفتح Issue في GitHub يحتوي التصحيح + الصورة مضمّنة"""
+# ── GitHub Integration (Issue + Image Upload) ─────────────────────────────────
+def upload_image_to_github(img_bytes: bytes, file_path: str, commit_message: str):
+    """يرفع الصورة مباشرة إلى مستودع GitHub"""
     token = st.secrets["GITHUB_TOKEN"]
     repo  = st.secrets["GITHUB_REPO"]
-    url   = f"https://api.github.com/repos/{repo}/issues"
+    url   = f"https://api.github.com/repos/{repo}/contents/{file_path}"
 
-    # ضغط الصورة إلى 224×224 لتقليل الحجم
+    # ضغط وتجهيز الصورة بصيغة Base64
     img = Image.open(_io.BytesIO(img_bytes)).convert("RGB").resize((224, 224))
     buf = _io.BytesIO()
-    img.save(buf, format="JPEG", quality=70)
-    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-    img_md = f"![الصورة](data:image/jpeg;base64,{b64})"
+    img.save(buf, format="JPEG", quality=85)
+    b64_content = base64.b64encode(buf.getvalue()).decode("utf-8")
 
+    data = json.dumps({
+        "message": commit_message,
+        "content": b64_content,
+        "branch": "main"  # أو "master" حسب الفرع الأساسي عندك
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        url, data=data, method="PUT",
+        headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        })
+    try:
+        with urllib.request.urlopen(req) as res:
+            res_data = json.loads(res.read())
+            return res_data["content"]["html_url"]
+    except Exception:
+        return None
+
+def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
+    """يفتح Issue في GitHub ويرفق معه رابط الصورة المحفوظة في المستودع"""
+    token = st.secrets["GITHUB_TOKEN"]
+    repo  = st.secrets["GITHUB_REPO"]
+    issues_url = f"https://api.github.com/repos/{repo}/issues"
+
+    # 1. حفظ الصورة في مجلد training_corrections داخل المستودع
+    import time
+    file_name = f"correction_{int(time.time())}_{correct}.jpg"
+    file_path = f"training_corrections/{correct}/{file_name}"
+    
+    img_url = upload_image_to_github(
+        img_bytes, 
+        file_path, 
+        commit_message=f"Add correction image for {correct} (Predicted was {wrong})"
+    )
+
+    image_md = f"[🔗 عرض وتنزيل صورة التدريب]({img_url})" if img_url else "*تعذر رفع الصورة للمستودع*"
+
+    # 2. إنشاء الـ Issue
     data = json.dumps({
         "title": f"تصحيح: {wrong} ← {correct}",
         "body": (
             f"**توقع النموذج:** {wrong}\n\n"
             f"**الطبق الصحيح:** {correct}\n\n"
-            f"{img_md}\n\n"
+            f"**صورة التدريب:** {image_md}\n\n"
             f"*تصحيح تلقائي من المستخدم*"
         ),
-        "labels": ["correction"],
+        "labels": ["correction", "training-data"],
     }).encode("utf-8")
 
     req = urllib.request.Request(
-        url, data=data, method="POST",
+        issues_url, data=data, method="POST",
         headers={
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github+json",
@@ -150,7 +189,7 @@ if img_source is not None:
         st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
         st.session_state.feedback_sent = False
         # احفظ الصورة في الذاكرة
-        buf = __import__('io').BytesIO()
+        buf = _io.BytesIO()
         image.convert("RGB").save(buf, format="JPEG")
         st.session_state.img_bytes = buf.getvalue()
 
@@ -198,7 +237,7 @@ if st.session_state.top_indices is not None:
 
         if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
             wrong_name = names_ar[st.session_state.top_indices[0]]
-            with st.spinner("جاري الحفظ..."):
+            with st.spinner("جاري حفظ الصورة وإنشاء التقرير على GitHub..."):
                 try:
                     issue_url = create_github_issue(
                         wrong_name, fix,
@@ -209,10 +248,10 @@ if st.session_state.top_indices is not None:
                     st.error(f"خطأ: {e}")
 
     elif st.session_state.feedback_sent == "done":
-        st.success("شكراً! تم حفظ ملاحظتك 🎉")
-        st.info("سأراجع التصحيحات لاحقاً لتحسين النموذج.")
+        st.success("شكراً! تم حفظ الصورة وتوثيق التصحيح في مستودع GitHub بنجاح 🎉")
+        st.info("ستتمكن من استخدام هذه الصور لاحقاً لإعادة تدريب النموذج.")
 
-# ── Footer ────────────────────────────────────────────────────────────────────
+# ── Footer ────────────────────────────────────────────────________________────
 st.markdown("""
 <div style="text-align:center;font-size:.85rem;opacity:.8;margin-top:30px;direction:ltr;">
   ⚠️ This model recognizes 70 Moroccan dishes only.<br>
