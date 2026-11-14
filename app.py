@@ -1,17 +1,20 @@
 """
 Moroccan Food Classifier — Streamlit version
+Saves corrections as GitHub Issues
 Author: Hamza Oulbayyad
 """
-import json, os, io
+import json, urllib.request, urllib.parse
 import numpy as np
 import streamlit as st
 from PIL import Image
 from tensorflow import keras
 
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ما هذا الطبق؟ — Hamza Oulbayyad",
     page_icon="🍽️", layout="centered")
 
+# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
   .bar-wrap{margin:6px 0 14px 0;direction:rtl}
@@ -29,6 +32,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ── GitHub Issues ─────────────────────────────────────────────────────────────
+def create_github_issue(wrong: str, correct: str):
+    """يفتح Issue في GitHub يحتوي التصحيح"""
+    token = st.secrets["GITHUB_TOKEN"]
+    repo  = st.secrets["GITHUB_REPO"]
+    url   = f"https://api.github.com/repos/{repo}/issues"
+    data  = json.dumps({
+        "title": f"تصحيح: {wrong} ← {correct}",
+        "body": (
+            f"**توقع النموذج:** {wrong}\n\n"
+            f"**الطبق الصحيح:** {correct}\n\n"
+            f"*تصحيح تلقائي من المستخدم*"
+        ),
+        "labels": ["correction"],
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=data, method="POST",
+        headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+        })
+    with urllib.request.urlopen(req) as res:
+        return json.loads(res.read())["html_url"]
+
+# ── Load model ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_assets():
     model = keras.models.load_model("food_model_v1.keras")
@@ -38,6 +67,7 @@ def load_assets():
 
 model, class_names = load_assets()
 
+# ── Arabic names ──────────────────────────────────────────────────────────────
 AR = {
     "traditional macaroon":"ماكرون تقليدي","tomatoes and onion salad":"سلطة الطماطم والبصل",
     "TAKTOUKA":"تكتوكة","zitoun":"زيتون","sweet bread":"خبز حلو","tkalya":"تقلية",
@@ -65,10 +95,12 @@ AR = {
 }
 names_ar = [AR.get(c, c) for c in class_names]
 
+# ── Session state ─────────────────────────────────────────────────────────────
 for key in ("top_indices","probs","feedback_sent"):
     if key not in st.session_state:
         st.session_state[key] = None
 
+# ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="background:linear-gradient(135deg,#9a3412,#ea580c 55%,#fdba74);
             border-radius:20px;padding:30px 20px;text-align:center;color:white;
@@ -83,6 +115,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ── Image input ───────────────────────────────────────────────────────────────
 tab_upload, tab_camera = st.tabs(["📁 رفع صورة","📷 تصوير مباشر"])
 with tab_upload:
     uploaded_file = st.file_uploader(
@@ -93,6 +126,7 @@ with tab_camera:
 
 img_source = uploaded_file or camera_photo
 
+# ── Predict ───────────────────────────────────────────────────────────────────
 if img_source is not None:
     image = Image.open(img_source)
     st.image(image, caption="الصورة المرفوعة", use_container_width=True)
@@ -106,6 +140,7 @@ if img_source is not None:
         st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
         st.session_state.feedback_sent = False
 
+# ── Results ───────────────────────────────────────────────────────────────────
 if st.session_state.top_indices is not None:
     medals = ["🥇","🥈","🥉"]
     ranks  = ["rank-1","rank-2","rank-3"]
@@ -121,6 +156,7 @@ if st.session_state.top_indices is not None:
           </div>
         </div>""", unsafe_allow_html=True)
 
+    # ── Feedback ──────────────────────────────────────────────────────────────
     if not st.session_state.feedback_sent:
         st.divider()
         st.markdown("**هل التوقع الأول صحيح؟**")
@@ -145,13 +181,22 @@ if st.session_state.top_indices is not None:
             options=[""] + names_ar,
             index=0,
             label_visibility="collapsed")
+
         if fix and st.button("📨 إرسال التصحيح", use_container_width=True):
-            st.session_state.feedback_sent = "done"
-            st.rerun()
+            wrong_name = names_ar[st.session_state.top_indices[0]]
+            with st.spinner("جاري الحفظ..."):
+                try:
+                    issue_url = create_github_issue(wrong_name, fix)
+                    st.session_state.feedback_sent = "done"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"خطأ: {e}")
 
     elif st.session_state.feedback_sent == "done":
-        st.success("شكراً! تم تسجيل ملاحظتك 🎉")
+        st.success("شكراً! تم حفظ ملاحظتك 🎉")
+        st.info("سأراجع التصحيحات لاحقاً لتحسين النموذج.")
 
+# ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="text-align:center;font-size:.85rem;opacity:.8;margin-top:30px;direction:ltr;">
   ⚠️ This model recognizes 70 Moroccan dishes only.<br>
