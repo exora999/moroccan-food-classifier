@@ -3,7 +3,7 @@ Moroccan Food Classifier — Streamlit version
 Saves corrections as GitHub Issues
 Author: Hamza Oulbayyad
 """
-import json, urllib.request, urllib.parse
+import json, urllib.request, urllib.parse, base64, io as _io
 import numpy as np
 import streamlit as st
 from PIL import Image
@@ -33,20 +33,30 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── GitHub Issues ─────────────────────────────────────────────────────────────
-def create_github_issue(wrong: str, correct: str):
-    """يفتح Issue في GitHub يحتوي التصحيح"""
+def create_github_issue(wrong: str, correct: str, img_bytes: bytes):
+    """يفتح Issue في GitHub يحتوي التصحيح + الصورة مضمّنة"""
     token = st.secrets["GITHUB_TOKEN"]
     repo  = st.secrets["GITHUB_REPO"]
     url   = f"https://api.github.com/repos/{repo}/issues"
-    data  = json.dumps({
+
+    # ضغط الصورة إلى 224×224 لتقليل الحجم
+    img = Image.open(_io.BytesIO(img_bytes)).convert("RGB").resize((224, 224))
+    buf = _io.BytesIO()
+    img.save(buf, format="JPEG", quality=70)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    img_md = f"![الصورة](data:image/jpeg;base64,{b64})"
+
+    data = json.dumps({
         "title": f"تصحيح: {wrong} ← {correct}",
         "body": (
             f"**توقع النموذج:** {wrong}\n\n"
             f"**الطبق الصحيح:** {correct}\n\n"
+            f"{img_md}\n\n"
             f"*تصحيح تلقائي من المستخدم*"
         ),
         "labels": ["correction"],
     }).encode("utf-8")
+
     req = urllib.request.Request(
         url, data=data, method="POST",
         headers={
@@ -96,7 +106,7 @@ AR = {
 names_ar = [AR.get(c, c) for c in class_names]
 
 # ── Session state ─────────────────────────────────────────────────────────────
-for key in ("top_indices","probs","feedback_sent"):
+for key in ("top_indices","probs","feedback_sent","img_bytes"):
     if key not in st.session_state:
         st.session_state[key] = None
 
@@ -109,9 +119,9 @@ st.markdown("""
   <p style="margin:0 0 14px 0;font-size:1.05rem;color:white;opacity:.95;">
     📸 Upload or take a photo of a Moroccan dish — ارفع صورة أو التقطها</p>
   <span style="display:inline-block;background:rgba(255,255,255,.22);
-               border:1px solid rgba(255,255,255,.55);border-radius:999px;
-               padding:6px 18px;font-size:1rem;color:white;">
-     ✨ Created by: <b>Hamza Oulbayyad</b></span>
+                border:1px solid rgba(255,255,255,.55);border-radius:999px;
+                padding:6px 18px;font-size:1rem;color:white;">
+      ✨ Created by: <b>Hamza Oulbayyad</b></span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -139,6 +149,10 @@ if img_source is not None:
         st.session_state.probs = probs
         st.session_state.top_indices = np.argsort(probs)[::-1][:3].tolist()
         st.session_state.feedback_sent = False
+        # احفظ الصورة في الذاكرة
+        buf = __import__('io').BytesIO()
+        image.convert("RGB").save(buf, format="JPEG")
+        st.session_state.img_bytes = buf.getvalue()
 
 # ── Results ───────────────────────────────────────────────────────────────────
 if st.session_state.top_indices is not None:
@@ -186,7 +200,9 @@ if st.session_state.top_indices is not None:
             wrong_name = names_ar[st.session_state.top_indices[0]]
             with st.spinner("جاري الحفظ..."):
                 try:
-                    issue_url = create_github_issue(wrong_name, fix)
+                    issue_url = create_github_issue(
+                        wrong_name, fix,
+                        st.session_state.img_bytes)
                     st.session_state.feedback_sent = "done"
                     st.rerun()
                 except Exception as e:
