@@ -24,7 +24,7 @@ st.set_page_config(
 st.markdown("""
 <style>
   .bar-wrap { margin: 6px 0 14px 0; direction: rtl; }
-  .bar-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; color: #1a1a1a; }
+  .bar-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; color: #ea580c; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
   .bar-track { background: #f0f0f0; border-radius: 999px; height: 22px; width: 100%;
                overflow: hidden; }
   .bar-fill  { height: 22px; border-radius: 999px;
