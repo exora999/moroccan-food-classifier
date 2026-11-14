@@ -125,7 +125,7 @@ For best results, use a clear, top-down photo of a single dish.</div>
 </div>
 """
 
-with gr.Blocks(title="ما هذا الطبق؟ — حمزة اولبياض") as demo:
+with gr.Blocks(title="ما هذا الطبق؟") as demo:
     gr.HTML(HERO)
     inp = gr.Image(type="pil", sources=["upload", "webcam"],
                    label="صورة الطبق (ارفع صورة أو التقطها)", height=360)
