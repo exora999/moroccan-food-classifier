@@ -17,13 +17,11 @@ st.set_page_config(
 # ── Stunning Dark Glassmorphism CSS ──────────────────────────────────────────
 st.markdown("""
 <style>
-  /* خلفية مظلمة فخمة وناعمة تريح العين */
   .stApp {
       background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f172a 60%, #020617 100%);
       color: #f3f4f6;
   }
   
-  /* تحسين مظهر الأشرطة النسبية بتصميم مظلم متناسق */
   .bar-wrap{margin:8px 0 16px 0;direction:rtl}
   .bar-label{font-size:1.1rem;font-weight:700;margin-bottom:6px;
              color:#fb923c;text-shadow:0 1px 2px rgba(0,0,0,.5)}
@@ -38,7 +36,6 @@ st.markdown("""
   .rank-2 .bar-fill{background:linear-gradient(90deg,#9a3412,#d97706,#fcd34d);opacity:.95}
   .rank-3 .bar-fill{background:linear-gradient(90deg,#374151,#4b5563,#9ca3af);opacity:.9}
 
-  /* أزرار تفاعلية عصرية ذات مظهر زجاجي متحرك */
   .stButton>button {
       border-radius: 14px !important;
       font-weight: 700 !important;
@@ -55,7 +52,6 @@ st.markdown("""
       box-shadow: 0 10px 20px -3px rgba(234, 88, 12, 0.4) !important;
   }
   
-  /* تنسيق الصناديق والتبويبات بلمسة زجاجية */
   .stTabs [data-baseweb="tab-list"] {
       gap: 10px;
   }
