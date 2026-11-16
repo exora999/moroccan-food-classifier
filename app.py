@@ -25,9 +25,12 @@ st.markdown("""
       background: radial-gradient(circle at 50% 0%, #111c44 0%, #070b19 60%, #03050c 100%);
       color: #f8fafc;
   }
+header[data-testid="stHeader"] {
+      background: transparent !important;
+  }
   .block-container {
       max-width: 860px !important;
-      padding-top: 2rem !important;
+      padding-top: 4.5rem !important;
   }
   .hero-banner {
       position: relative;
