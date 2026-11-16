@@ -744,7 +744,7 @@ if st.session_state.top_indices is not None:
 
 st.markdown("""
 <div class="glass-footer">
-  <span>ℹ️ This model recognizes <b>70 Moroccan dishes</b> only.</span>
+  <span>⚠️ This model recognizes <b>70 Moroccan dishes</b> only.</span>
   <span>|</span>
   <span><b>Model Version:</b> v1.4</span>
   <span>|</span>
