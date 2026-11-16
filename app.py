@@ -743,7 +743,7 @@ st.markdown("""
 <div class="glass-footer">
   <span>ℹ️ This model recognizes <b>70 Moroccan dishes</b> only.</span>
   <span>|</span>
-  <span><b>Model Version:</b> v1.3</span>
+  <span><b>Model Version:</b> v1.4</span>
   <span>|</span>
   <span><b>Hamza Oulbayyad</b> — Dataset: MFOOD_70 (CC BY-SA 4.0)</span>
   <span>|</span>
