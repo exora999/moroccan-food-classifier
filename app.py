@@ -589,52 +589,46 @@ if img_source is not None:
 
 if st.session_state.top_indices is not None:
     mini_medals = ["🥇", "🥈", "🥉"]
-    rows_html = ""
+    rows_list = []
     for i, idx in enumerate(st.session_state.top_indices):
         rank_num = i + 1
         pct = st.session_state.probs[idx] * 100
-        rows_html += f"""
-        <div class="pred-row row-rank-{rank_num}">
-          <div class="medal-badge medal-{rank_num}">{rank_num}</div>
-          <div class="v-divider div-{rank_num}"></div>
-          <div class="dish-info">
-            <span>{names_ar[idx]}</span>
-            <span>{mini_medals[i]}</span>
-          </div>
-          <div class="p-track">
-            <div class="p-fill fill-{rank_num}" style="width:{pct:.1f}%">
-              {pct:.1f}%
-            </div>
-          </div>
-        </div>
-        """
+        rows_list.append(
+            f'<div class="pred-row row-rank-{rank_num}">'
+            f'<div class="medal-badge medal-{rank_num}">{rank_num}</div>'
+            f'<div class="v-divider div-{rank_num}"></div>'
+            f'<div class="dish-info"><span>{names_ar[idx]}</span><span>{mini_medals[i]}</span></div>'
+            f'<div class="p-track"><div class="p-fill fill-{rank_num}" style="width:{pct:.1f}%">{pct:.1f}%</div></div>'
+            f'</div>'
+        )
+    rows_html = "".join(rows_list)
 
     st.markdown(f"""
-    <div class="pred-panel">
-      <div class="pred-header">
-        <div class="pred-header-left">
-          <div class="pred-icon-box">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-              <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="pred-title">Top 3 <span>Predictions</span></h3>
-            <p class="pred-subtitle">Model Confidence for Each Class</p>
-          </div>
-        </div>
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.45">
-          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-          <polyline points="17 6 23 6 23 12"></polyline>
+<div class="pred-panel">
+  <div class="pred-header">
+    <div class="pred-header-left">
+      <div class="pred-icon-box">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+          <path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/>
         </svg>
       </div>
-      {rows_html}
-      <div class="pred-footer-bar">
-        <span>ℹ️ Predictions are based on our trained model</span>
-        <span class="conf-pill">🧠 Model Confidence</span>
+      <div>
+        <h3 class="pred-title">Top 3 <span>Predictions</span></h3>
+        <p class="pred-subtitle">Model Confidence for Each Class</p>
       </div>
     </div>
-    """, unsafe_allow_html=True)
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.45">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+      <polyline points="17 6 23 6 23 12"></polyline>
+    </svg>
+  </div>
+  {rows_html}
+  <div class="pred-footer-bar">
+    <span>ℹ️ Predictions are based on our trained model</span>
+    <span class="conf-pill">🧠 Model Confidence</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
 
