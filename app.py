@@ -88,6 +88,7 @@ st.markdown("""
       align-items: center;
       justify-content: center;
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      flex-shrink: 0;
   }
   .hero-title {
       margin: 0;
@@ -196,6 +197,7 @@ st.markdown("""
       align-items: center;
       justify-content: center;
       box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+      flex-shrink: 0;
   }
   .pred-title {
       font-size: 1.5rem;
@@ -227,6 +229,12 @@ st.markdown("""
   }
   .pred-row:hover {
       transform: translateX(3px);
+  }
+  .pred-row-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
   }
   .row-rank-1 {
       border: 1.5px solid rgba(249, 115, 22, 0.65);
@@ -278,7 +286,7 @@ st.markdown("""
   .div-3 { background: #a855f7; }
   .dish-info {
       min-width: 155px;
-      max-width: 175px;
+      max-width: 185px;
       display: flex;
       align-items: center;
       justify-content: flex-end;
@@ -288,15 +296,15 @@ st.markdown("""
       font-weight: 700;
       color: #ffffff;
       text-align: right;
-      flex-shrink: 0;
   }
   .p-track {
       flex-grow: 1;
+      width: 100%;
       height: 24px;
       background: rgba(23, 37, 74, 0.9);
       border-radius: 999px;
       overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
   }
   .p-fill {
       height: 100%;
@@ -307,7 +315,7 @@ st.markdown("""
       font-size: 0.86rem;
       font-weight: 800;
       color: #ffffff;
-      min-width: 58px;
+      min-width: 62px;
       transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .fill-1 { background: linear-gradient(90deg, #ea580c, #f97316, #fbbf24); }
@@ -317,6 +325,7 @@ st.markdown("""
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
       background: rgba(15, 26, 58, 0.75);
       border: 1px solid rgba(59, 130, 246, 0.2);
       border-radius: 14px;
@@ -336,6 +345,62 @@ st.markdown("""
       border-radius: 999px;
       font-weight: 700;
       font-size: 0.8rem;
+      flex-shrink: 0;
+  }
+  @media (max-width: 640px) {
+      .hero-banner {
+          padding: 24px 16px;
+      }
+      .hero-title {
+          font-size: 1.55rem;
+      }
+      .hero-utensils {
+          width: 40px;
+          height: 40px;
+      }
+      .hero-svg-left {
+          width: 85px;
+          height: 85px;
+          left: 6px;
+          bottom: -4px;
+          opacity: 0.3;
+      }
+      .hero-svg-right {
+          width: 90px;
+          height: 85px;
+          right: 6px;
+          opacity: 0.25;
+      }
+      .hero-pill {
+          padding: 7px 16px;
+          font-size: 0.85rem;
+      }
+      .pred-panel {
+          padding: 16px;
+      }
+      .pred-title {
+          font-size: 1.25rem;
+      }
+      .pred-row {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 12px;
+          padding: 14px 16px;
+      }
+      .pred-row-head {
+          width: 100%;
+          justify-content: space-between;
+      }
+      .dish-info {
+          min-width: unset;
+          max-width: unset;
+          flex-grow: 1;
+          font-size: 1.08rem;
+      }
+      .pred-footer-bar {
+          flex-direction: column;
+          text-align: center;
+      }
   }
   .stButton>button {
       border-radius: 14px !important;
@@ -595,9 +660,11 @@ if st.session_state.top_indices is not None:
         pct = st.session_state.probs[idx] * 100
         rows_list.append(
             f'<div class="pred-row row-rank-{rank_num}">'
+            f'<div class="pred-row-head">'
             f'<div class="medal-badge medal-{rank_num}">{rank_num}</div>'
             f'<div class="v-divider div-{rank_num}"></div>'
             f'<div class="dish-info"><span>{names_ar[idx]}</span><span>{mini_medals[i]}</span></div>'
+            f'</div>'
             f'<div class="p-track"><div class="p-fill fill-{rank_num}" style="width:{pct:.1f}%">{pct:.1f}%</div></div>'
             f'</div>'
         )
