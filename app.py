@@ -347,9 +347,9 @@ st.markdown("""
       font-size: 0.8rem;
       flex-shrink: 0;
   }
-  @media (max-width: 640px) {
+@media (max-width: 640px) {
       .hero-banner {
-          padding: 24px 16px;
+          padding: 24px 16px 46px 16px;
       }
       .hero-title {
           font-size: 1.55rem;
@@ -359,17 +359,18 @@ st.markdown("""
           height: 40px;
       }
       .hero-svg-left {
-          width: 85px;
-          height: 85px;
-          left: 6px;
-          bottom: -4px;
-          opacity: 0.3;
+          width: 62px;
+          height: 62px;
+          left: 4px;
+          bottom: -8px;
+          opacity: 0.25;
       }
       .hero-svg-right {
-          width: 90px;
-          height: 85px;
-          right: 6px;
-          opacity: 0.25;
+          width: 68px;
+          height: 62px;
+          right: 4px;
+          bottom: -4px;
+          opacity: 0.2;
       }
       .hero-pill {
           padding: 7px 16px;
